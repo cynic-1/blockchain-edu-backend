@@ -1,8 +1,9 @@
 package database
 
 import (
-	"github.com/yourusername/blockchain-edu-backend/internal/config"
-	"github.com/yourusername/blockchain-edu-backend/internal/models"
+	"fmt"
+	"github.com/cynic-1/blockchain-edu-backend/internal/config"
+	"github.com/cynic-1/blockchain-edu-backend/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -10,8 +11,12 @@ import (
 var DB *gorm.DB
 
 func InitDB() error {
+	dbConfig := config.AppConfig.Database
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.Password, dbConfig.DBName)
+
 	var err error
-	DB, err = gorm.Open(postgres.Open(config.AppConfig.DatabaseURL), &gorm.Config{})
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return err
 	}
