@@ -138,10 +138,20 @@ func (h *Handler) RemoveContainer(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Container removed successfully"})
 }
 
-// Admin
+func (h *Handler) GetStudentInfo(c *gin.Context) {
+	userID, err := getUserIDFromContext(c)
+	student, err := h.userService.GetUser(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"Student Info": student})
+}
+
 func (h *Handler) GetUserScore(c *gin.Context) {
-	userID := c.Param("userID")
-	_, err := h.userService.GetUser(userID)
+	userID, err := getUserIDFromContext(c)
+	_, err = h.userService.GetUser(userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
@@ -170,6 +180,7 @@ func (h *Handler) GetUserScore(c *gin.Context) {
 //	c.JSON(http.StatusOK, gin.H{"message": "Score updated successfully"})
 //}
 
+// Admin
 func (h *Handler) DeleteUser(c *gin.Context) {
 	userID := c.Param("userID")
 	if err := h.userService.DeleteUser(userID); err != nil {
@@ -181,13 +192,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 }
 
 func (h *Handler) ChangePassword(c *gin.Context) {
-	userID := c.Param("userID")
-	currentUserID := c.GetString("userID")
-
-	if userID != currentUserID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You can only change your own password"})
-		return
-	}
+	userID, _ := getUserIDFromContext(c)
 
 	var passwordData struct {
 		OldPassword string `json:"old_password" binding:"required"`

@@ -32,9 +32,9 @@ func main() {
 	authorized := r.Group("/")
 	authorized.Use(auth.AuthMiddleware())
 	{
-		authorized.GET("/user/:userID/score", handler.GetUserScore)
-		authorized.DELETE("/user/:userID", handler.DeleteUser)                   // 添加删除用户路由
-		authorized.POST("/user/:userID/change-password", handler.ChangePassword) // 添加修改密码路由
+		authorized.GET("/user/score", handler.GetUserScore)              // 在实验界面刷新
+		authorized.POST("/user/change-password", handler.ChangePassword) // 添加修改密码路由
+		authorized.GET("/user/info", handler.GetStudentInfo)             // 获取用户信息-在个人信息界面，不触发刷新
 
 		// 容器相关的路由
 		authorized.POST("/container", handler.CreateContainer)
