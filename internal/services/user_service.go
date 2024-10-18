@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/cynic-1/blockchain-edu-backend/internal/config"
@@ -10,11 +11,13 @@ import (
 	"github.com/cynic-1/blockchain-edu-backend/internal/docker"
 	"github.com/cynic-1/blockchain-edu-backend/internal/models"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"io"
 	"log"
 	"mime/multipart"
+	"net/http"
 	"time"
 )
 
@@ -91,6 +94,99 @@ func (s *UserService) ChangePassword(userID string, oldPassword, newPassword str
 
 	// 更新密码
 	return database.DB.Model(user).Update("password", string(hashedPassword)).Error
+}
+
+type ScoreResponse struct {
+	Native struct {
+		DeployPcoin int `json:"/deploy/pcoin"`
+		InvokePcoin int `json:"/invoke/pcoin"`
+		InvokeXcoin int `json:"/invoke/xcoin"`
+		QueryPcoin  int `json:"/query/pcoin"`
+		QueryTaddr  int `json:"/query/taddr"`
+		QueryXcoin  int `json:"/query/xcoin"`
+	} `json:"native"`
+	Setup struct {
+		BuildChain      int `json:"/build/chain"`
+		ClusterStart    int `json:"/cluster/start"`
+		GenesisAddrs    int `json:"/genesis/addrs"`
+		GenesisRandom   int `json:"/genesis/random"`
+		GenesisTemplate int `json:"/genesis/template"`
+		NewCluster      int `json:"/new/cluster"`
+		NewFactory      int `json:"/new/factory"`
+		ResetWorkdir    int `json:"/reset/workdir"`
+	} `json:"setup"`
+	Transaction struct {
+		DeployContract int `json:"/deploy/contract"`
+		InvokeContract int `json:"/invoke/contract"`
+		NewClientNode  int `json:"/new/client/:node"`
+		QueryContract  int `json:"/query/contract"`
+		UploadContract int `json:"/upload/contract"`
+	} `json:"transaction"`
+}
+
+func (s *UserService) GetUserScore(userID string) (pq.BoolArray, error) {
+	// 从数据库获取用户信息
+	var user models.User
+	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+		return nil, fmt.Errorf("user not found: %v", err)
+	}
+
+	// 构建请求URL
+	url := fmt.Sprintf("http://localhost:%d/scores", user.DockerPort)
+
+	// 创建带超时的HTTP客户端
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// 发送GET请求
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get score from user container: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 解析响应
+	var scoreResp ScoreResponse
+	if err := json.NewDecoder(resp.Body).Decode(&scoreResp); err != nil {
+		return nil, fmt.Errorf("failed to decode score: %v", err)
+	}
+
+	// 转换为布尔数组
+	newScore := s.convertScoreResponseToBoolArray(scoreResp)
+
+	// 更新用户分数
+	user.Score = newScore
+
+	// 保存更新后的用户信息
+	if err := database.DB.Save(&user).Error; err != nil {
+		return nil, fmt.Errorf("failed to update score in database: %v", err)
+	}
+
+	return user.Score, nil
+}
+
+func (s *UserService) convertScoreResponseToBoolArray(resp ScoreResponse) pq.BoolArray {
+	score := make(pq.BoolArray, models.ScoreCount)
+
+	// Setup
+	score[models.ScoreBuildChain] = resp.Setup.BuildChain > 0
+	score[models.ScoreGenesisAddrs] = resp.Setup.GenesisAddrs > 0
+	score[models.ScoreGenesisRandom] = resp.Setup.GenesisRandom > 0
+	score[models.ScoreGenesisTemplate] = resp.Setup.GenesisTemplate > 0
+	score[models.ScoreNewCluster] = resp.Setup.NewCluster > 0
+	score[models.ScoreNewFactory] = resp.Setup.NewFactory > 0
+	score[models.ScoreResetWorkdir] = resp.Setup.ResetWorkdir > 0
+
+	// Transaction
+	score[models.ScoreDeployContract] = resp.Transaction.DeployContract > 0
+	score[models.ScoreInvokeContract] = resp.Transaction.InvokeContract > 0
+	score[models.ScoreQueryContract] = resp.Transaction.QueryContract > 0
+	score[models.ScoreUploadContract] = resp.Transaction.UploadContract > 0
+
+	// 注意：某些字段可能需要调整，因为返回的 JSON 和之前的模型不完全匹配
+	// 例如，我们没有 NewClientde，但有 NewClientNode
+	// score[models.ScoreNewClientde] = resp.Transaction.NewClientNode > 0
+
+	return score
 }
 
 func (s *UserService) CreateContainer(userID string) (string, int, error) {

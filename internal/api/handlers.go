@@ -151,15 +151,14 @@ func (h *Handler) GetStudentInfo(c *gin.Context) {
 
 func (h *Handler) GetUserScore(c *gin.Context) {
 	userID, err := getUserIDFromContext(c)
-	_, err = h.userService.GetUser(userID)
+
+	score, err := h.userService.GetUserScore(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 这里应该调用容器服务获取最新成绩,然后更新数据库
-	// 简化处理,直接返回数据库中的成绩
-	c.JSON(http.StatusOK, gin.H{"score": 100})
+	c.JSON(http.StatusOK, gin.H{"score": score})
 }
 
 //func (h *Handler) UpdateUserScore(c *gin.Context) {
