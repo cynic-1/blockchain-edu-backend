@@ -12,8 +12,8 @@ POST {{baseUrl}}/register
 Content-Type: application/json
 
 {
-  "user_id": "testuser2",
-  "password": "testpassword2",
+  "user_id": "testuser4",
+  "password": "testpassword4",
   "class": "class1",
   "grade": "grade1"
 }
@@ -23,8 +23,8 @@ POST {{baseUrl}}/login
 Content-Type: application/json
 
 {
-  "user_id": "testuser2",
-  "password": "testpassword2"
+  "user_id": "testuser4",
+  "password": "testpassword4"
 }
 
 ### 获取用户信息

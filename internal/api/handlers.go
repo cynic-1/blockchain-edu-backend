@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // getUserIDFromContext 从 Gin 上下文中获取用户 ID
@@ -50,6 +51,13 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 		return
 	}
 
+	// 创建容器
+	_, _, err := h.userService.CreateContainer(user.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create container: " + err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
 }
 
@@ -72,6 +80,12 @@ func (h *Handler) Login(c *gin.Context) {
 	user, err := h.userService.GetUser(loginData.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 启动容器
+	if err := h.userService.StartContainer(user.UserID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start container: " + err.Error()})
 		return
 	}
 
@@ -294,4 +308,8 @@ func (h *Handler) GetAllStudents(c *gin.Context) {
 		"page_size":   pageSize,
 		"total_pages": totalPages,
 	})
+}
+
+func (h *Handler) CleanupInactiveContainers(inactivityThreshold time.Duration) error {
+	return h.userService.CleanupInactiveContainers(inactivityThreshold)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/cynic-1/blockchain-edu-backend/internal/database"
 	"github.com/gin-gonic/gin"
 	"log"
+	"time"
 )
 
 func main() {
@@ -21,6 +22,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create API handler: %v", err)
 	}
+
+	// 启动定期清理任务
+	go func() {
+		for {
+			if err := handler.CleanupInactiveContainers(30 * time.Minute); err != nil {
+				log.Printf("Error cleaning up inactive containers: %v", err)
+			}
+			time.Sleep(5 * time.Minute)
+		}
+	}()
 
 	r := gin.Default()
 

@@ -270,6 +270,17 @@ func (s *UserService) RemoveContainer(userID string) error {
 	return database.DB.Save(user).Error
 }
 
+func (s *UserService) GetInactiveContainers(duration time.Duration) ([]string, error) {
+	var inactiveUsers []string
+	cutoffTime := time.Now().Add(-duration)
+
+	err := database.DB.Model(&models.User{}).
+		Where("last_activity < ? AND container_id IS NOT NULL", cutoffTime).
+		Pluck("user_id", &inactiveUsers).Error
+
+	return inactiveUsers, err
+}
+
 // Admin
 func (s *UserService) allocatePort() (int, error) {
 	var maxPort int
@@ -454,4 +465,8 @@ func (s *UserService) GetStudentsPaginated(class, grade string, page, pageSize i
 	}
 
 	return users, totalCount, nil
+}
+
+func (s *UserService) CleanupInactiveContainers(inactivityThreshold time.Duration) error {
+	return s.dockerManager.CleanupInactiveContainers(inactivityThreshold)
 }
