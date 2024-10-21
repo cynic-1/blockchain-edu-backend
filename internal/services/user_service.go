@@ -50,7 +50,7 @@ func (s *UserService) Login(userID, password string) (string, error) {
 	var user models.User
 	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		log.Printf("Error finding user %s: %v", userID, err)
-		return "", errors.New("user not found")
+		return "", err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {

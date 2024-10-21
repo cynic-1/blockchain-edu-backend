@@ -69,8 +69,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	userID, err := getUserIDFromContext(c)
-	user, err := h.userService.GetUser(userID)
+	user, err := h.userService.GetUser(loginData.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
