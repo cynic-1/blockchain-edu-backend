@@ -112,6 +112,7 @@ DELETE {{baseUrl}}/admin/user/testuser
 Authorization: Bearer {{adminToken}}
 
 ### 管理员修改用户密码
+// user2 替换为实际需要更改的user_id
 POST {{baseUrl}}/admin/user/user2/change-password
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json

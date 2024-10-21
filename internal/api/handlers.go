@@ -8,6 +8,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 )
 
 // getUserIDFromContext 从 Gin 上下文中获取用户 ID
@@ -68,7 +69,14 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	userID, err := getUserIDFromContext(c)
+	user, err := h.userService.GetUser(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": token, "userInfo": user})
 }
 
 func (h *Handler) CreateContainer(c *gin.Context) {
@@ -138,15 +146,15 @@ func (h *Handler) RemoveContainer(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Container removed successfully"})
 }
 
-func (h *Handler) GetStudentInfo(c *gin.Context) {
+func (h *Handler) GetUserInfo(c *gin.Context) {
 	userID, err := getUserIDFromContext(c)
-	student, err := h.userService.GetUser(userID)
+	user, err := h.userService.GetUser(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"Student Info": student})
+	c.JSON(http.StatusOK, gin.H{"userInfo": user})
 }
 
 func (h *Handler) GetUserScore(c *gin.Context) {
@@ -254,11 +262,37 @@ func (h *Handler) GetAllStudents(c *gin.Context) {
 	class := c.Query("class")
 	grade := c.Query("grade")
 
-	students, err := h.userService.GetAllStudents(class, grade)
+	// 获取分页参数
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize, err := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	if err != nil || pageSize < 1 {
+		pageSize = 10
+	}
+
+	// 设置最大页面大小，防止请求过大的数据量
+	maxPageSize := 100
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+
+	students, totalCount, err := h.userService.GetStudentsPaginated(class, grade, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"students": students})
+	// 计算总页数，注意类型转换
+	totalPages := int((totalCount + int64(pageSize) - 1) / int64(pageSize))
+
+	c.JSON(http.StatusOK, gin.H{
+		"students":    students,
+		"total_count": totalCount,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": totalPages,
+	})
 }

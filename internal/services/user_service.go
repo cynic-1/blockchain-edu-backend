@@ -427,3 +427,31 @@ func (s *UserService) GetAllStudents(class, grade string) ([]models.User, error)
 
 	return users, nil
 }
+
+func (s *UserService) GetStudentsPaginated(class, grade string, page, pageSize int) ([]models.User, int64, error) {
+	var users []models.User
+	var totalCount int64
+
+	query := database.DB.Where("is_admin = ?", false)
+
+	if class != "" {
+		query = query.Where("class = ?", class)
+	}
+	if grade != "" {
+		query = query.Where("grade = ?", grade)
+	}
+
+	// 获取总数
+	if err := query.Count(&totalCount).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	err := query.Offset(offset).Limit(pageSize).Find(&users).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, totalCount, nil
+}
