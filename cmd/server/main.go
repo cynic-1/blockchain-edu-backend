@@ -6,6 +6,7 @@ import (
 	"github.com/cynic-1/blockchain-edu-backend/internal/auth"
 	"github.com/cynic-1/blockchain-edu-backend/internal/config"
 	"github.com/cynic-1/blockchain-edu-backend/internal/database"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"log"
 	"time"
@@ -35,6 +36,16 @@ func main() {
 
 	r := gin.Default()
 
+	// 配置CORS中间件
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"}, // 允许所有来源，生产环境建议设置具体的域名
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	// 公开路由
 	r.POST("/register", handler.RegisterUser)
 	r.POST("/login", handler.Login)
@@ -46,12 +57,6 @@ func main() {
 		authorized.GET("/user/score", handler.GetUserScore)              // 在实验界面刷新
 		authorized.POST("/user/change-password", handler.ChangePassword) // 添加修改密码路由
 		authorized.GET("/user/info", handler.GetUserInfo)                // 获取用户信息-在个人信息界面，不触发刷新
-
-		// 容器相关的路由
-		authorized.POST("/container", handler.CreateContainer)
-		authorized.POST("/container/start", handler.StartContainer)
-		authorized.POST("/container/stop", handler.StopContainer)
-		authorized.DELETE("/container", handler.RemoveContainer)
 	}
 
 	// 管理员路由
