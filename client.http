@@ -104,7 +104,7 @@ user3111,pass3,class3,grade3
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 ### 管理员获取学生信息
-GET {{baseUrl}}/admin/students/class=class1&grade=grade1&page=2&page_size=20
+GET {{baseUrl}}/admin/students?class=class1&grade=grade1&page=1&page_size=20
 Authorization: Bearer {{adminToken}}
 
 ### 管理员删除用户

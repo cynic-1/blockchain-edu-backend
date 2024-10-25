@@ -443,7 +443,7 @@ func (s *UserService) GetStudentsPaginated(class, grade string, page, pageSize i
 	var users []models.User
 	var totalCount int64
 
-	query := database.DB.Where("is_admin = ?", false)
+	query := database.DB.Model(&models.User{}).Where("is_admin = ?", false)
 
 	if class != "" {
 		query = query.Where("class = ?", class)
