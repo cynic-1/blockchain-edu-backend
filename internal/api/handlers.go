@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/cynic-1/blockchain-edu-backend/internal/database"
 	"github.com/cynic-1/blockchain-edu-backend/internal/models"
 	"github.com/cynic-1/blockchain-edu-backend/internal/services"
 	"github.com/gin-gonic/gin"
@@ -46,12 +47,29 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 		return
 	}
 
+	// 验证必要字段
+	if user.UserID == "" || user.Name == "" || user.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID、姓名和密码不能为空"})
+		return
+	}
+
+	// 普通注册接口只能注册学生账号
+	user.IsAdmin = false
+
 	if err := h.userService.CreateUser(&user); err != nil {
+		// 检查是否是唯一约束违反错误
+		if database.IsUniqueViolationError(err) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "用户ID已存在",
+				"code":  "USER_ID_EXISTS",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 创建容器
+	// 只有学生账号才创建容器
 	_, _, err := h.userService.CreateContainer(user.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create container: " + err.Error()})
@@ -59,6 +77,37 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
+}
+
+func (h *Handler) RegisterAdmin(c *gin.Context) {
+	var user models.User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 验证必要字段
+	if user.UserID == "" || user.Name == "" || user.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID、姓名和密码不能为空"})
+		return
+	}
+
+	// 设置为管理员账号
+	user.IsAdmin = true
+
+	if err := h.userService.CreateUser(&user); err != nil {
+		if database.IsUniqueViolationError(err) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "用户ID已存在",
+				"code":  "USER_ID_EXISTS",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Admin created successfully"})
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -83,10 +132,12 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	// 启动容器
-	if err := h.userService.StartContainer(user.UserID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start container: " + err.Error()})
-		return
+	// 只有学生账号才需要启动容器
+	if !user.IsAdmin {
+		if err := h.userService.StartContainer(user.UserID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start container: " + err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"token": token, "userInfo": user})
@@ -182,6 +233,26 @@ func (h *Handler) GetUserScore(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"score": score})
 }
 
+func (h *Handler) ChangePassword(c *gin.Context) {
+	userID, _ := getUserIDFromContext(c)
+
+	var passwordData struct {
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&passwordData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userService.ChangePassword(userID, passwordData.OldPassword, passwordData.NewPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}
+
 //func (h *Handler) UpdateUserScore(c *gin.Context) {
 //	userID := c.Param("userID")
 //	var scoreData struct {
@@ -211,26 +282,6 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
 
-func (h *Handler) ChangePassword(c *gin.Context) {
-	userID, _ := getUserIDFromContext(c)
-
-	var passwordData struct {
-		OldPassword string `json:"old_password" binding:"required"`
-		NewPassword string `json:"new_password" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&passwordData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := h.userService.ChangePassword(userID, passwordData.OldPassword, passwordData.NewPassword); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
-}
-
 func (h *Handler) AdminChangePassword(c *gin.Context) {
 	userID := c.Param("userID")
 
@@ -248,6 +299,31 @@ func (h *Handler) AdminChangePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}
+
+// 在 handlers.go 中添加
+func (h *Handler) UpdateUserInfo(c *gin.Context) {
+	userID := c.Param("userID")
+
+	// 定义请求体结构
+	var updateData struct {
+		Name  string `json:"name"`
+		Class string `json:"class"`
+		Grade string `json:"grade"`
+	}
+
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 调用 service 层方法更新用户信息
+	if err := h.userService.UpdateUserInfo(userID, updateData.Name, updateData.Class, updateData.Grade); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User information updated successfully"})
 }
 
 func (h *Handler) BulkCreateUsers(c *gin.Context) {
@@ -312,4 +388,34 @@ func (h *Handler) GetAllStudents(c *gin.Context) {
 
 func (h *Handler) CleanupInactiveContainers(inactivityThreshold time.Duration) error {
 	return h.userService.CleanupInactiveContainers(inactivityThreshold)
+}
+
+func (h *Handler) ExportStudents(c *gin.Context) {
+	// 获取查询参数
+	class := c.Query("class")
+	grade := c.Query("grade")
+
+	// 导出数据
+	csvData, err := h.userService.ExportStudentsToCSV(class, grade)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 生成文件名
+	timestamp := time.Now().Format("20060102150405")
+	filename := fmt.Sprintf("students_export_%s.csv", timestamp)
+
+	// 设置响应头
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Expires", "0")
+	c.Header("Cache-Control", "must-revalidate")
+	c.Header("Pragma", "public")
+	c.Header("Content-Length", fmt.Sprint(len(csvData)))
+
+	// 写入响应
+	c.Writer.Write(csvData)
 }

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -124,39 +125,58 @@ type ScoreResponse struct {
 	} `json:"transaction"`
 }
 
+// mergeScores 合并两个布尔数组，使用OR操作
+func mergeScores(oldScore, newScore pq.BoolArray) pq.BoolArray {
+	// 确定最终数组的长度
+	maxLen := len(oldScore)
+	if len(newScore) > maxLen {
+		maxLen = len(newScore)
+	}
+
+	// 创建结果数组
+	result := make(pq.BoolArray, maxLen)
+
+	// 复制并合并数据
+	for i := 0; i < maxLen; i++ {
+		var oldVal, newVal bool
+		if i < len(oldScore) {
+			oldVal = oldScore[i]
+		}
+		if i < len(newScore) {
+			newVal = newScore[i]
+		}
+		result[i] = oldVal || newVal
+	}
+
+	return result
+}
+
 func (s *UserService) GetUserScore(userID string) (pq.BoolArray, error) {
-	// 从数据库获取用户信息
 	var user models.User
 	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		return nil, fmt.Errorf("user not found: %v", err)
 	}
 
-	// 构建请求URL
 	url := fmt.Sprintf("http://localhost:%d/scores", user.DockerPort)
-
-	// 创建带超时的HTTP客户端
 	client := &http.Client{Timeout: 10 * time.Second}
-
-	// 发送GET请求
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get score from user container: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// 解析响应
 	var scoreResp ScoreResponse
 	if err := json.NewDecoder(resp.Body).Decode(&scoreResp); err != nil {
 		return nil, fmt.Errorf("failed to decode score: %v", err)
 	}
 
-	// 转换为布尔数组
 	newScore := s.convertScoreResponseToBoolArray(scoreResp)
 
-	// 更新用户分数
-	user.Score = newScore
+	// 使用辅助函数合并成绩
+	mergedScore := mergeScores(user.Score, newScore)
 
-	// 保存更新后的用户信息
+	// 更新用户成绩
+	user.Score = mergedScore
 	if err := database.DB.Save(&user).Error; err != nil {
 		return nil, fmt.Errorf("failed to update score in database: %v", err)
 	}
@@ -167,24 +187,30 @@ func (s *UserService) GetUserScore(userID string) (pq.BoolArray, error) {
 func (s *UserService) convertScoreResponseToBoolArray(resp ScoreResponse) pq.BoolArray {
 	score := make(pq.BoolArray, models.ScoreCount)
 
+	// Native
+	score[models.ScoreDeployPcoin] = resp.Native.DeployPcoin > 1
+	score[models.ScoreInvokePcoin] = resp.Native.InvokePcoin > 1
+	score[models.ScoreInvokeXcoin] = resp.Native.InvokeXcoin > 1
+	score[models.ScoreQueryPcoin] = resp.Native.QueryPcoin > 1
+	score[models.ScoreQueryTaddr] = resp.Native.QueryTaddr > 1
+	score[models.ScoreQueryXcoin] = resp.Native.QueryXcoin > 1
+
 	// Setup
-	score[models.ScoreBuildChain] = resp.Setup.BuildChain > 0
-	score[models.ScoreGenesisAddrs] = resp.Setup.GenesisAddrs > 0
-	score[models.ScoreGenesisRandom] = resp.Setup.GenesisRandom > 0
-	score[models.ScoreGenesisTemplate] = resp.Setup.GenesisTemplate > 0
-	score[models.ScoreNewCluster] = resp.Setup.NewCluster > 0
-	score[models.ScoreNewFactory] = resp.Setup.NewFactory > 0
-	score[models.ScoreResetWorkdir] = resp.Setup.ResetWorkdir > 0
+	score[models.ScoreBuildChain] = resp.Setup.BuildChain > 1
+	score[models.ScoreClusterStart] = resp.Setup.ClusterStart > 1
+	score[models.ScoreGenesisAddrs] = resp.Setup.GenesisAddrs > 1
+	score[models.ScoreGenesisRandom] = resp.Setup.GenesisRandom > 1
+	score[models.ScoreGenesisTemplate] = resp.Setup.GenesisTemplate > 1
+	score[models.ScoreNewCluster] = resp.Setup.NewCluster > 1
+	score[models.ScoreNewFactory] = resp.Setup.NewFactory > 1
+	score[models.ScoreResetWorkdir] = resp.Setup.ResetWorkdir > 1
 
 	// Transaction
-	score[models.ScoreDeployContract] = resp.Transaction.DeployContract > 0
-	score[models.ScoreInvokeContract] = resp.Transaction.InvokeContract > 0
-	score[models.ScoreQueryContract] = resp.Transaction.QueryContract > 0
-	score[models.ScoreUploadContract] = resp.Transaction.UploadContract > 0
-
-	// 注意：某些字段可能需要调整，因为返回的 JSON 和之前的模型不完全匹配
-	// 例如，我们没有 NewClientde，但有 NewClientNode
-	// score[models.ScoreNewClientde] = resp.Transaction.NewClientNode > 0
+	score[models.ScoreDeployContract] = resp.Transaction.DeployContract > 1
+	score[models.ScoreInvokeContract] = resp.Transaction.InvokeContract > 1
+	score[models.ScoreNewClientNode] = resp.Transaction.NewClientNode > 1
+	score[models.ScoreQueryContract] = resp.Transaction.QueryContract > 1
+	score[models.ScoreUploadContract] = resp.Transaction.UploadContract > 1
 
 	return score
 }
@@ -327,6 +353,38 @@ func (s *UserService) UpdateUserScore(userID string, score float64) error {
 	return database.DB.Model(&models.User{}).Where("user_id = ?", userID).Update("score", score).Error
 }
 
+func (s *UserService) UpdateUserInfo(userID, name, class, grade string) error {
+	// 首先检查用户是否存在
+	user, err := s.GetUser(userID)
+	if err != nil {
+		return err
+	}
+
+	// 更新用户信息
+	updates := map[string]interface{}{}
+	if name != "" {
+		updates["name"] = name
+	}
+	if class != "" {
+		updates["class"] = class
+	}
+	if grade != "" {
+		updates["grade"] = grade
+	}
+
+	// 如果没有需要更新的字段，直接返回
+	if len(updates) == 0 {
+		return nil
+	}
+
+	// 执行更新
+	if err := database.DB.Model(user).Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to update user information: %v", err)
+	}
+
+	return nil
+}
+
 func (s *UserService) AdminChangePassword(userID string, newPassword string) error {
 	// 获取用户
 	var user models.User
@@ -394,12 +452,19 @@ func (s *UserService) BulkCreateUsers(file multipart.File) error {
 			return err
 		}
 
+		// 假设CSV格式为: UserID,Name,Password,Class,Grade
+		if len(record) < 5 {
+			tx.Rollback()
+			return fmt.Errorf("invalid CSV format: expected at least 5 columns")
+		}
+
 		// 假设CSV格式为: UserID,Password,Class,Grade
 		user := &models.User{
 			UserID:   record[0],
-			Password: record[1],
-			Class:    record[2],
-			Grade:    record[3],
+			Name:     record[1],
+			Password: record[2],
+			Class:    record[3],
+			Grade:    record[4],
 		}
 
 		if err := s.createUserWithinTransaction(tx, user); err != nil {
@@ -469,4 +534,75 @@ func (s *UserService) GetStudentsPaginated(class, grade string, page, pageSize i
 
 func (s *UserService) CleanupInactiveContainers(inactivityThreshold time.Duration) error {
 	return s.dockerManager.CleanupInactiveContainers(inactivityThreshold)
+}
+
+func (s *UserService) ExportStudentsToCSV(class, grade string) ([]byte, error) {
+	// 查询符合条件的学生
+	var users []models.User
+	query := database.DB.Where("is_admin = ?", false)
+
+	if class != "" {
+		query = query.Where("class = ?", class)
+	}
+	if grade != "" {
+		query = query.Where("grade = ?", grade)
+	}
+
+	if err := query.Find(&users).Error; err != nil {
+		return nil, fmt.Errorf("failed to query users: %v", err)
+	}
+
+	// 创建一个buffer来写入CSV数据
+	buf := new(bytes.Buffer)
+	writer := csv.NewWriter(buf)
+
+	// 写入CSV头部
+	headers := []string{
+		"UserID", "Name", "Class", "Grade",
+		// Setup scores
+		"NewFactory", "ResetWorkdir", "GenesisAddrs", "GenesisRandom", "GenesisTemplate",
+		"NewCluster", "BuildChain", "ClusterStart",
+		// Transaction scores
+		"NewClientNode", "UploadContract", "DeployContract", "InvokeContract", "QueryContract",
+		// Native scores
+		"DeployPcoin", "InvokePcoin", "QueryPcoin", "InvokeXcoin", "QueryXcoin", "QueryTaddr",
+	}
+
+	if err := writer.Write(headers); err != nil {
+		return nil, fmt.Errorf("failed to write headers: %v", err)
+	}
+
+	// 写入每个用户的数据
+	for _, user := range users {
+		// 将bool数组转换为字符串数组
+		scoreStrs := make([]string, models.ScoreCount)
+		for i := 0; i < models.ScoreCount; i++ {
+			if i < len(user.Score) && user.Score[i] {
+				scoreStrs[i] = "1"
+			} else {
+				scoreStrs[i] = "0"
+			}
+		}
+
+		// 组合所有字段
+		record := []string{
+			user.UserID,
+			user.Name,
+			user.Class,
+			user.Grade,
+		}
+		record = append(record, scoreStrs...)
+
+		if err := writer.Write(record); err != nil {
+			return nil, fmt.Errorf("failed to write record: %v", err)
+		}
+	}
+
+	// 确保所有数据都写入buffer
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, fmt.Errorf("failed to flush writer: %v", err)
+	}
+
+	return buf.Bytes(), nil
 }

@@ -54,12 +54,11 @@ Content-Type: application/json
 }
 
 ### 注册管理员
-POST {{baseUrl}}/register/admin
+POST {{baseUrl}}/register
 Content-Type: application/json
 
 {
   "user_id": "admin",
-  "name": "admin1234",
   "password": "adminpass",
   "is_admin": true
 }
@@ -79,6 +78,22 @@ Authorization: Bearer {{authToken}}
 
 ### 用户在完成任务后需要调用获取分数接口，来对成绩进行更新
 
+### 创建容器
+POST {{baseUrl}}/container
+Authorization: Bearer {{authToken}}
+
+### 启动容器
+POST {{baseUrl}}/container/start
+Authorization: Bearer {{authToken}}
+
+### 停止容器
+POST {{baseUrl}}/container/stop
+Authorization: Bearer {{authToken}}
+
+### 删除容器
+DELETE {{baseUrl}}/container
+Authorization: Bearer {{authToken}}
+
 ### 管理员批量创建用户
 POST {{baseUrl}}/admin/users/bulk-create
 Authorization: Bearer {{adminToken}}
@@ -96,11 +111,6 @@ user3111,pass3,class3,grade3
 ### 管理员获取学生信息
 GET {{baseUrl}}/admin/students?class=class1&grade=grade1&page=1&page_size=20
 Authorization: Bearer {{adminToken}}
-
-### 管理员导出成绩到CSV
-GET {{baseUrl}}/admin/students/export?class=class1
-Authorization: Bearer {{adminToken}}
-
 
 ### 管理员删除用户
 DELETE {{baseUrl}}/admin/user/testuser

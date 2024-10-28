@@ -49,6 +49,7 @@ func main() {
 	// 公开路由
 	r.POST("/register", handler.RegisterUser)
 	r.POST("/login", handler.Login)
+	r.POST("/register/admin", handler.RegisterAdmin)
 
 	// 需要认证的路由
 	authorized := r.Group("/")
@@ -69,6 +70,8 @@ func main() {
 		// 管理员也可以删除用户和修改用户密码
 		admin.DELETE("/user/:userID", handler.DeleteUser)
 		admin.POST("/user/:userID/change-password", handler.AdminChangePassword)
+		admin.PUT("/user/:userID", handler.UpdateUserInfo) // 更新用户信息
+		admin.GET("/students/export", handler.ExportStudents)
 	}
 
 	if err := r.Run(fmt.Sprintf(":%d", config.AppConfig.Server.Port)); err != nil {
