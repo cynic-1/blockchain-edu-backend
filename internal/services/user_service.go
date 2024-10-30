@@ -218,7 +218,7 @@ func (s *UserService) convertScoreResponseToBoolArray(resp ScoreResponse) pq.Boo
 func (s *UserService) CreateContainer(userID string) (string, int, error) {
 	log.Printf("Attempting to create container for user: %s", userID)
 
-	user, err := s.GetUser(userID)
+	user, err := s.GetFullUser(userID)
 	if err != nil {
 		return "", 0, err
 	}
@@ -342,6 +342,15 @@ func (s *UserService) allocatePort() (int, error) {
 }
 
 func (s *UserService) GetUser(userID string) (*models.User, error) {
+	var user models.User
+	if err := database.DB.Select("user_id, name, class, grade, score, docker_port, container_id, is_admin").Where("user_id = ?", userID).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetFullUser 返回完整的用户信息（包含所有字段）
+func (s *UserService) GetFullUser(userID string) (*models.User, error) {
 	var user models.User
 	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		return nil, err
@@ -488,7 +497,7 @@ func (s *UserService) createUserWithinTransaction(tx *gorm.DB, user *models.User
 
 func (s *UserService) GetAllStudents(class, grade string) ([]models.User, error) {
 	var users []models.User
-	query := database.DB.Where("is_admin = ?", false)
+	query := database.DB.Select("user_id, name, class, grade, score, docker_port, container_id").Where("is_admin = ?", false)
 
 	if class != "" {
 		query = query.Where("class = ?", class)
@@ -524,7 +533,7 @@ func (s *UserService) GetStudentsPaginated(class, grade string, page, pageSize i
 
 	// 分页查询
 	offset := (page - 1) * pageSize
-	err := query.Offset(offset).Limit(pageSize).Find(&users).Error
+	err := query.Select("user_id, name, class, grade, score, docker_port, container_id").Offset(offset).Limit(pageSize).Find(&users).Error
 	if err != nil {
 		return nil, 0, err
 	}

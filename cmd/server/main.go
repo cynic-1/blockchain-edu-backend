@@ -49,7 +49,7 @@ func main() {
 	// 公开路由
 	r.POST("/register", handler.RegisterUser)
 	r.POST("/login", handler.Login)
-	r.POST("/register/admin", handler.RegisterAdmin)
+	r.POST("/registerAdmin", handler.RegisterAdmin)
 
 	// 需要认证的路由
 	authorized := r.Group("/")

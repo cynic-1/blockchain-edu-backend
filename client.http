@@ -19,8 +19,6 @@ Content-Type: application/json
   "grade": "grade1"
 }
 
-### 如果user_id（学号）重复，则状态码为 409 (Conflict)
-
 ### 普通用户登录
 POST {{baseUrl}}/login
 Content-Type: application/json
@@ -54,7 +52,7 @@ Content-Type: application/json
 }
 
 ### 注册管理员
-POST {{baseUrl}}/register/admin
+POST {{baseUrl}}/registerAdmin
 Content-Type: application/json
 
 {

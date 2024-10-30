@@ -61,7 +61,6 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 		if database.IsUniqueViolationError(err) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error": "用户ID已存在",
-				"code":  "USER_ID_EXISTS",
 			})
 			return
 		}
