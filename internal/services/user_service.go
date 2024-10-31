@@ -418,7 +418,7 @@ func (s *UserService) AdminChangePassword(userID string, newPassword string) err
 
 func (s *UserService) DeleteUser(userID string) error {
 	// 首先获取用户信息
-	user, err := s.GetUser(userID)
+	user, err := s.GetFullUser(userID)
 	if err != nil {
 		return err
 	}
