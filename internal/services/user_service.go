@@ -19,6 +19,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -440,51 +441,6 @@ func (s *UserService) DeleteUser(userID string) error {
 	return nil
 }
 
-func (s *UserService) BulkCreateUsers(file multipart.File) error {
-	reader := csv.NewReader(file)
-
-	// 开始数据库事务
-	tx := database.DB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	for {
-		record, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		// 假设CSV格式为: UserID,Name,Password,Class,Grade
-		if len(record) < 5 {
-			tx.Rollback()
-			return fmt.Errorf("invalid CSV format: expected at least 5 columns")
-		}
-
-		// 假设CSV格式为: UserID,Password,Class,Grade
-		user := &models.User{
-			UserID:   record[0],
-			Name:     record[1],
-			Password: record[2],
-			Class:    record[3],
-			Grade:    record[4],
-		}
-
-		if err := s.createUserWithinTransaction(tx, user); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	return tx.Commit().Error
-}
-
 func (s *UserService) createUserWithinTransaction(tx *gorm.DB, user *models.User) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -614,4 +570,71 @@ func (s *UserService) ExportStudentsToCSV(class, grade string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (s *UserService) BulkCreateUsers(file multipart.File) error {
+	reader := csv.NewReader(file)
+
+	// 读取并跳过头行
+	if _, err := reader.Read(); err != nil {
+		return fmt.Errorf("failed to read CSV header: %v", err)
+	}
+
+	var failedUsers []string
+	var successCount, failCount int
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read CSV record: %v", err)
+		}
+
+		// 验证记录格式
+		if len(record) < 5 {
+			failCount++
+			failedUsers = append(failedUsers, fmt.Sprintf("Invalid record format: %v", record))
+			continue
+		}
+
+		// 创建用户对象
+		user := &models.User{
+			UserID:   record[0],
+			Name:     record[1],
+			Password: record[2],
+			Class:    record[3],
+			Grade:    record[4],
+			IsAdmin:  false, // 批量创建只允许创建学生账号
+		}
+
+		// 创建用户
+		if err := s.CreateUser(user); err != nil {
+			failCount++
+			failedUsers = append(failedUsers, fmt.Sprintf("Failed to create user %s: %v", user.UserID, err))
+			continue
+		}
+
+		// 创建容器
+		_, _, err = s.CreateContainer(user.UserID)
+		if err != nil {
+			// 如果容器创建失败，需要删除用户记录
+			if err := s.DeleteUser(user.UserID); err != nil {
+				log.Printf("Failed to cleanup user after container creation failure: %v", err)
+			}
+			failCount++
+			failedUsers = append(failedUsers, fmt.Sprintf("Failed to create container for user %s: %v", user.UserID, err))
+			continue
+		}
+
+		successCount++
+	}
+
+	if failCount > 0 {
+		return fmt.Errorf("Bulk creation completed. Success: %d, Failed: %d. Failed users: %v",
+			successCount, failCount, strings.Join(failedUsers, "; "))
+	}
+
+	return nil
 }

@@ -75,7 +75,6 @@ Content-Type: application/json
 GET {{baseUrl}}/user/score
 Authorization: Bearer {{authToken}}
 
-### 用户在完成任务后需要调用获取分数接口，来对成绩进行更新
 
 ### 管理员批量创建用户
 POST {{baseUrl}}/admin/users/bulk-create
@@ -86,9 +85,10 @@ Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0g
 Content-Disposition: form-data; name="file"; filename="users.csv"
 Content-Type: text/csv
 
-user1111,name1,pass1,class1,grade1
-user2111,name2,pass2,class2,grade2
-user3111,name3,pass3,class3,grade3
+UserID,Name,Class,Grade
+user11,name1,pass1,class11,grade1
+user21,name2,pass2,class11,grade2
+user31,name3,pass3,class11,grade3
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 ### 管理员获取学生信息
@@ -96,11 +96,11 @@ GET {{baseUrl}}/admin/students?class=class1&grade=grade1&page=1&page_size=20
 Authorization: Bearer {{adminToken}}
 
 ### 管理员获取学生信息
-GET {{baseUrl}}/admin/students?class=class1
+GET {{baseUrl}}/admin/students?class=class11
 Authorization: Bearer {{adminToken}}
 
 ### 管理员导出成绩到CSV
-GET {{baseUrl}}/admin/students/export?class=class1
+GET {{baseUrl}}/admin/students/export?class=class11
 Authorization: Bearer {{adminToken}}
 
 
