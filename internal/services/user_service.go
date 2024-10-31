@@ -19,6 +19,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -521,9 +522,9 @@ func (s *UserService) ExportStudentsToCSV(class, grade string) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	writer := csv.NewWriter(buf)
 
-	// 写入CSV头部
+	// 修改CSV头部，添加总分字段
 	headers := []string{
-		"UserID", "Name", "Class", "Grade",
+		"学号", "姓名", "班级", "年级", "总分",
 		// Setup scores
 		"NewFactory", "ResetWorkdir", "GenesisAddrs", "GenesisRandom", "GenesisTemplate",
 		"NewCluster", "BuildChain", "ClusterStart",
@@ -539,11 +540,13 @@ func (s *UserService) ExportStudentsToCSV(class, grade string) ([]byte, error) {
 
 	// 写入每个用户的数据
 	for _, user := range users {
-		// 将bool数组转换为字符串数组
+		// 将bool数组转换为字符串数组并计算总分
 		scoreStrs := make([]string, models.ScoreCount)
+		totalScore := 0
 		for i := 0; i < models.ScoreCount; i++ {
 			if i < len(user.Score) && user.Score[i] {
 				scoreStrs[i] = "1"
+				totalScore++
 			} else {
 				scoreStrs[i] = "0"
 			}
@@ -555,6 +558,7 @@ func (s *UserService) ExportStudentsToCSV(class, grade string) ([]byte, error) {
 			user.Name,
 			user.Class,
 			user.Grade,
+			strconv.Itoa(totalScore), // 添加总分
 		}
 		record = append(record, scoreStrs...)
 

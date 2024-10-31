@@ -407,7 +407,7 @@ func (h *Handler) ExportStudents(c *gin.Context) {
 
 	// 设置响应头
 	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.Header("Content-Transfer-Encoding", "binary")
 	c.Header("Expires", "0")
