@@ -47,8 +47,8 @@ Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-  "old_password": "pass1",
-  "new_password": "pass1"
+  "old_password": "testpassword",
+  "new_password": "newpass"
 }
 
 ### 注册管理员
@@ -85,7 +85,7 @@ Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0g
 Content-Disposition: form-data; name="file"; filename="users.csv"
 Content-Type: text/csv
 
-UserID,Name,Class,Grade
+UserID,Name,Pass, Class,Grade
 user11,name1,pass1,class11,grade1
 user21,name2,pass2,class11,grade2
 user31,name3,pass3,class11,grade3

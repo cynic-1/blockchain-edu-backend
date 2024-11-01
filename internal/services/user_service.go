@@ -79,7 +79,7 @@ func (s *UserService) Login(userID, password string) (string, error) {
 }
 
 func (s *UserService) ChangePassword(userID string, oldPassword, newPassword string) error {
-	user, err := s.GetUser(userID)
+	user, err := s.GetFullUser(userID)
 	if err != nil {
 		return err
 	}
