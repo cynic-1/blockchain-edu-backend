@@ -1,0 +1,16 @@
+database:
+  host: localhost
+  port: 5432
+  user: blockchain_edu_user
+  password: blockchain_pass
+  dbname: blockchain_edu_db
+
+jwt:
+  secret: blockchain_edu_jwt
+  expiry: 24  # 单位: 小时
+
+docker:
+  image: chain-proxy
+
+server:
+  port: 8080
